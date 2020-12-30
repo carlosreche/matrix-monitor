@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matrix Monitor</title>
+  <style type="text/css">
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+    }
+  </style>
+  <script type="module">
+    // Remember that imports won't work when running locally.
+    // In this case, the script file should be imported via
+    // the "src" attribute of the script tag, with the lines
+    // below copied at the end of it.
+    import MatrixMonitor from '../src/matrix-monitor.js'
+
+
+    const monitor = new MatrixMonitor('matrix-monitor')
+
+    // try a few customizations
+    //monitor.setOptions({fontColor: 'blue', fadedFontColor: 'orange'})
+
+    monitor.start({delay: 0, duration: 120000})
+    //monitor.pause({delay: 5000, onlyTopCells: false, allAtOnce: false})
+    //monitor.resume({delay: 10000})
+    //monitor.stop({delay: 20000, clearScreen: true})
+
+    // draw ASCII arts in the middle of the digital rain
+    monitor.draw(MatrixMonitor.Image.ALIEN, {delay: 20000, duration: 20000})
+
+  </script>
+</head>
+<body>
+  <div id="matrix-monitor"></div>
+</body>
+</html>
