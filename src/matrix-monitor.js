@@ -24,7 +24,7 @@
 /**
  * MatrixMonitor
  * 
- * Creates the digital rain from The Matrix movies.
+ * Creates the digital rain from The Matrix (c) movies.
  * 
  * @url https://github.com/carlosreche/matrix-monitor
  * @author Carlos Henrique Reche
@@ -41,6 +41,7 @@ const _start = Symbol('MatrixMonitor._start')
 const _pause = Symbol('MatrixMonitor._pause')
 const _resume = Symbol('MatrixMonitor._resume')
 const _stop = Symbol('MatrixMonitor._stop')
+const _glitch = Symbol('MatrixMonitor._glitch')
 const _draw = Symbol('MatrixMonitor._draw')
 
 const random = (from, to) => Math.floor((Math.random() * (to - from)) + from)
@@ -62,6 +63,7 @@ export default class MatrixMonitor {
     width: '100%',
     height: '100%',
     backgroundColor: '#000000',
+    backgroundColorOnClear: '#001500',
     fontColor: '#91F490',
     fontSize: 20,
     fontFamily: 'Courier New',
@@ -85,6 +87,7 @@ export default class MatrixMonitor {
       columns: [],
       cells: [],
       topCells: [],
+      options: this[_options],
       mainLoop: null,
       createDroplet: null,
       timers: {
@@ -192,19 +195,12 @@ export default class MatrixMonitor {
 
     let {
       alphabet,
-      minCharStartDelay,
-      maxCharStartDelay,
-      minCharProgression,
-      maxCharProgression,
-      fadingDuration,
       width,
       height,
       paddingLeft,
       paddingTop,
       backgroundColor,
       fontColor,
-      fadedFontColor,
-      fadedOpacity,
       fontSize,
       fontFamily,
       fontWeight,
@@ -289,6 +285,10 @@ export default class MatrixMonitor {
         charTable = [],
         ignoreColumns = []
       } = mainLoopOptions
+      let {
+        minCharStartDelay,
+        maxCharStartDelay,
+      } = this[_options]
       const charTableByColumn = []
       const tableLength = charTable.length
       if (!clearScreen && (tableLength > 0)) {
@@ -324,6 +324,10 @@ export default class MatrixMonitor {
         clearScreen = false,
         charList = []
       } = dropletOptions
+      let {
+        minCharProgression,
+        maxCharProgression
+      } = this[_options]
       let progression = random(minCharProgression, maxCharProgression)
       let delay = 0
       let previousChar = null
@@ -343,19 +347,28 @@ export default class MatrixMonitor {
         const updateFunction = () => {
           const htmlElement = cell.htmlElement
           const style = htmlElement.style
+          const options = monitor.options
           style.transitionDelay = '0ms'
           style.transitionDuration = '100ms'
-          style.color = fontColor
+          style.color = options.fontColor
           htmlElement.innerText = char
           cell.update.isUpdated = true
           style.opacity = 1
-          // timeout needed to browser create CSS animation between opacities
+          if ((char === '') || (char === ' ')) {
+            style.transitionDuration = '50ms'
+            style.backgroundColor = options.backgroundColorOnClear
+          }
+          // timeout needed to trigger the CSS animations between different styles
           setTimeout(
             () => {
               style.transitionDelay = '100ms'
-              style.transitionDuration = fadingDuration + 'ms'
-              style.color = fadedFontColor
-              style.opacity = fadedOpacity
+              style.transitionDuration = options.fadingDuration + 'ms'
+              style.color = options.fadedFontColor
+              style.opacity = options.fadedOpacity
+              if ((char === '') || (char === ' ')) {
+                style.transitionDuration = '20ms'
+                style.backgroundColor = options.backgroundColor
+              }
             },
             200
           )
@@ -529,6 +542,25 @@ export default class MatrixMonitor {
     }
   }
 
+  glitch(glitchFunction, options = {}) {
+    this[_defer](_glitch, glitchFunction, options)
+  }
+  [_glitch](glitchFunction, options = {}) {
+    let {
+      delay = 0,
+      duration = 3000
+    } = options
+    setTimeout(
+      () => {
+        this.pause({delay: 0, allAtOnce: true})
+        const glitchTimer = setInterval(glitchFunction, 700, this[_monitor])
+        setTimeout(clearInterval, duration, glitchTimer)
+        this.resume({delay: duration + 1000})
+      },
+      delay
+    )
+  }
+
   draw(asciiImage, options = {}) {
     this[_defer](_draw, asciiImage, options)
   }
@@ -544,7 +576,8 @@ export default class MatrixMonitor {
       paddingRight  = 1,
       marginLeft    = 2,
       paddingLeft   = 1,
-      paddingChar   = ''
+      paddingChar   = '',
+      keepOnNotAffectedColumns = true
     } = options
 
     if (!Array.isArray(asciiImage)) {
@@ -603,13 +636,51 @@ export default class MatrixMonitor {
     setTimeout(
       () => {
         this.pause({delay: 0, onlyTopCells: true})
-        this.resume({delay: delay + duration})
         setTimeout(monitor.mainLoop, 1500, {charTable: imageData})
+        this.resume({delay: delay + duration})
+
+        if (keepOnNotAffectedColumns) {
+          setTimeout(
+            () => {
+              let ignoredColumnIndex = marginLeft
+              const ignoreColumns = new Array(paddingLeft + imageWidth + paddingRight)
+                .fill(0)
+                .map(e => e + ignoredColumnIndex++)
+              const timer = setInterval(monitor.mainLoop,
+                monitor.options.mainLoopInterval, {ignoreColumns})
+              setTimeout(clearInterval, 2000 + duration, timer)
+            },
+            2000
+          )
+        }
+              
       },
       delay
     )
   }
 
+  static Glitch = class MatrixMonitorGlitch {
+    static BLINK_SCREEN = monitor => {
+      for (const cell of monitor.cells) {
+        const cellDelay = ((cell.rowIndex) + cell.columnIndex * 1.6) * 15
+        const style = cell.htmlElement.style
+        setTimeout(
+          () => {
+            style.transition = '10ms'
+            style.opacity = 1
+          },
+          cellDelay
+        )
+        setTimeout(
+          () => {
+            style.transition = '30ms'
+            style.opacity = monitor.options.fadedOpacity
+          },
+          cellDelay + 200
+        )
+      }
+    }
+  }
 
   // sources: https://ascii.co.uk/art and http://www.ascii-art.de/ascii/
   static Image = class MatrixMonitorImage {
