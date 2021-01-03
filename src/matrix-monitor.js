@@ -57,23 +57,33 @@ export default class MatrixMonitor {
     maxCharStartDelay: 10000,
     minCharProgression:  200,
     maxCharProgression:  800,
-    fadingDuration:     2000,
     paddingTop: 10,
     paddingLeft: 10,
     width: '100%',
     height: '100%',
-    backgroundColor: '#000000',
-    backgroundColorOnClear: '#001500',
-    fontColor: '#91F490',
-    fontSize: 20,
-    fontFamily: 'Courier New',
-    fontWeight: 'bold',
-    fadedFontColor: '#01A400',
-    fadedOpacity: 0.5,
     cellWidth: 15,
     cellHeight: 20,
     horizontalSpacing: 8,
-    verticalSpacing: 5
+    verticalSpacing: 5,
+    backgroundColor: '#000000',
+    fontColor: '#01A400',
+    fontSize: 20,
+    fontFamily: 'Courier New',
+    fontWeight: 'bold',
+    onAppear: {
+      fontColor: '#91F490',
+      opacity: 1,
+      transitionDuration: 100
+    },
+    onFade: {
+      fontColor: '#01A400',
+      opacity: 0.5,
+      transitionDuration: 1200
+    },
+    onDelete: {
+      backgroundColor: '#001500',
+      transitionDuration: 50
+    }
   }
 
   constructor(containerId, options = {}) {
@@ -82,6 +92,7 @@ export default class MatrixMonitor {
     this[_deferred]    = []
 
     this[_monitor] = {
+      instance: this,
       isInitialized: false,
       container: null,
       columns: [],
@@ -90,6 +101,7 @@ export default class MatrixMonitor {
       options: this[_options],
       mainLoop: null,
       createDroplet: null,
+      updateCell: null,
       timers: {
         mainLoopInterval: null,
         mainLoopDuration: null,
@@ -217,17 +229,6 @@ export default class MatrixMonitor {
     horizontalSpacing = parseInt(horizontalSpacing)
     verticalSpacing = parseInt(verticalSpacing)
 
-    const alphabetLenght = alphabet.length
-    const lastIndexOnRandom = alphabetLenght - 0.000001
-    const getRandomChar = (except = null) => {
-      const index = random(0, lastIndexOnRandom)
-      let char = alphabet[index]
-      if (except && (except === char)) {
-        char = index !== 0 ? alphabet[0] : alphabet[1]
-      }
-      return char
-    }
-
     Object.assign(container.style, {
       userSelect: 'none',
       position: 'relative',
@@ -277,6 +278,17 @@ export default class MatrixMonitor {
 
         column.addCell(divCell)
       }
+    }
+
+    const alphabetLenght = alphabet.length
+    const lastIndexOnRandom = alphabetLenght - 0.000001
+    monitor.getRandomChar = (except = null) => {
+      const index = random(0, lastIndexOnRandom)
+      let char = alphabet[index]
+      if (except && (except === char)) {
+        char = index !== 0 ? alphabet[0] : alphabet[1]
+      }
+      return char
     }
 
     monitor.mainLoop = (mainLoopOptions = {}) => {
@@ -339,45 +351,15 @@ export default class MatrixMonitor {
         } else {
           char = charList[i]
           if (!char && (char !== '')) {
-            char = getRandomChar(previousChar)
+            char = monitor.getRandomChar(previousChar)
           }
         }
         previousChar = char
 
-        const updateFunction = () => {
-          const htmlElement = cell.htmlElement
-          const style = htmlElement.style
-          const options = monitor.options
-          style.transitionDelay = '0ms'
-          style.transitionDuration = '100ms'
-          style.color = options.fontColor
-          htmlElement.innerText = char
-          cell.update.isUpdated = true
-          style.opacity = 1
-          if ((char === '') || (char === ' ')) {
-            style.transitionDuration = '50ms'
-            style.backgroundColor = options.backgroundColorOnClear
-          }
-          // timeout needed to trigger the CSS animations between different styles
-          setTimeout(
-            () => {
-              style.transitionDelay = '100ms'
-              style.transitionDuration = options.fadingDuration + 'ms'
-              style.color = options.fadedFontColor
-              style.opacity = options.fadedOpacity
-              if ((char === '') || (char === ' ')) {
-                style.transitionDuration = '20ms'
-                style.backgroundColor = options.backgroundColor
-              }
-            },
-            200
-          )
-        }
         clearTimeout(cell.update.timer)
-        const timer = setTimeout(updateFunction, delay)
+        const timer = setTimeout(monitor.updateCell, delay, cell, char)
         Object.assign(cell.update, {
           timer,
-          function: updateFunction,
           delay,
           progression,
           nextChar: char,
@@ -385,6 +367,38 @@ export default class MatrixMonitor {
         })
         delay += progression
       }
+    }
+    monitor.updateCell = (cell, char) => {
+      const htmlElement = cell.htmlElement
+      const style = htmlElement.style
+      const options = monitor.options
+      const onAppear = options.onAppear
+      const onFade = options.onFade
+      style.transitionDelay = '0ms'
+      style.transitionDuration = onAppear.transitionDuration + 'ms'
+      style.color = onAppear.fontColor || options.fontColor
+      htmlElement.innerText = char
+      cell.update.isUpdated = true
+      style.opacity = onAppear.opacity || 1
+      if ((char === '') || (char === ' ')) {
+        const onDelete = options.onDelete
+        style.transitionDuration = onDelete.transitionDuration + 'ms' || '50ms'
+        style.backgroundColor = onDelete.backgroundColor
+      }
+      // timeout needed to trigger the CSS animations between different styles
+      setTimeout(
+        () => {
+          style.transitionDelay = '100ms'
+          style.transitionDuration = onFade.transitionDuration + 'ms'
+          style.color = onFade.fontColor
+          style.opacity = onFade.opacity
+          if ((char === '') || (char === ' ')) {
+            style.transitionDuration = '20ms'
+            style.backgroundColor = options.backgroundColor
+          }
+        },
+        200
+      )
     }
 
     monitor.isInitialized = true
@@ -494,10 +508,11 @@ export default class MatrixMonitor {
           let cellDelay = 0
           for (let cell = topCell; cell; cell = cell.nextCell) {
             const update = cell.update
-            if (update.isUpdated || !update.function) {
+            if (update.isUpdated) {
               continue
             }
-            update.timer = setTimeout(update.function, cellDelay)
+            update.timer = setTimeout(monitor.updateCell, cellDelay,
+              cell, update.nextChar)
             cellDelay += update.progression
           }
         }
@@ -550,15 +565,7 @@ export default class MatrixMonitor {
       delay = 0,
       duration = 3000
     } = options
-    setTimeout(
-      () => {
-        this.pause({delay: 0, allAtOnce: true})
-        const glitchTimer = setInterval(glitchFunction, 700, this[_monitor])
-        setTimeout(clearInterval, duration, glitchTimer)
-        this.resume({delay: duration + 1000})
-      },
-      delay
-    )
+    setTimeout(glitchFunction, delay, this[_monitor], options)
   }
 
   draw(asciiImage, options = {}) {
@@ -660,25 +667,58 @@ export default class MatrixMonitor {
   }
 
   static Glitch = class MatrixMonitorGlitch {
-    static BLINK_SCREEN = monitor => {
-      for (const cell of monitor.cells) {
-        const cellDelay = ((cell.rowIndex) + cell.columnIndex * 1.6) * 15
-        const style = cell.htmlElement.style
-        setTimeout(
-          () => {
-            style.transition = '10ms'
-            style.opacity = 1
-          },
-          cellDelay
-        )
-        setTimeout(
-          () => {
-            style.transition = '30ms'
-            style.opacity = monitor.options.fadedOpacity
-          },
-          cellDelay + 200
-        )
+    static BLINK_SCREEN = (monitor, options = {}) => {
+      let {
+        duration = 3000
+      } = options
+      const glitchFunction = () => {
+        for (const cell of monitor.cells) {
+          const cellDelay = ((cell.rowIndex) + cell.columnIndex * 1.6) * 15
+          const style = cell.htmlElement.style
+          setTimeout(
+            () => {
+              style.transition = '10ms'
+              style.opacity = 1
+            },
+            cellDelay
+          )
+          setTimeout(
+            () => {
+              style.transition = '30ms'
+              style.opacity = monitor.options.onFade.opacity
+            },
+            cellDelay + 200
+          )
+        }
       }
+      monitor.instance.pause({delay: 0, allAtOnce: true})
+      const glitchTimer = setInterval(glitchFunction, 700)
+      setTimeout(clearInterval, duration, glitchTimer)
+      monitor.instance.resume({delay: duration + 1000})
+    }
+
+    static STUCK_CHARACTER = (monitor, options = {}) => {
+      let {
+        duration = 3000
+      } = options
+      monitor.instance.pause({delay: 0, allAtOnce: true})
+      const nextUpdated = []
+      for (const column of monitor.columns) {
+        for (const cell of column.cells) {
+          const nextCell = cell.nextCell
+          if (cell.update.isUpdated && nextCell && !nextCell.update.isUpdated) {
+            nextUpdated.push(nextCell)
+          }
+        }
+      }
+      const glitchFunction = () => {
+        for (const cell of nextUpdated) {
+          monitor.updateCell(cell, monitor.getRandomChar())
+        }
+      }
+      const glitchTimer = setInterval(glitchFunction, 100)
+      setTimeout(clearInterval, duration, glitchTimer)
+      monitor.instance.resume({delay: duration + 200})
     }
   }
 
