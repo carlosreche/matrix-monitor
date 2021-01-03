@@ -29,11 +29,12 @@
     //monitor.resume({delay: 10000})
     //monitor.stop({delay: 20000, clearScreen: true})
 
-    // draw ASCII arts in the middle of the digital rain
-    //monitor.draw(MatrixMonitor.Image.ALIEN, {delay: 20000, duration: 20000})
+    // causes a glitch at the cells being updated
+    monitor.glitch(MatrixMonitor.Glitch.STUCK_CHARACTER, {delay: 10000, duration: 2000})
 
-    // blinks the screen characters (to be refined in future upgrades, including new glitches)
-    //monitor.glitch(MatrixMonitor.Glitch.BLINK_SCREEN, {delay: 15000, duration: 3000})
+    // draw ASCII arts in the middle of the digital rain
+    monitor.draw(MatrixMonitor.Image.ALIEN, {delay: 20000, duration: 20000})
+
   </script>
 </head>
 <body>
